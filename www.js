@@ -3,6 +3,7 @@ const url = require("url");
 const path = require("path");
 const fs = require("fs");
 const querystring = require("querystring")
+const dateInfo = require("./dateTimeFnc");
 const datetimeValue = require("./datetime_et");
 const semester = require("./semesterprogress");
 
@@ -15,33 +16,34 @@ const pageFoot = '<hr></body></html>'
 http.createServer(function(req, res){
 	let currentURL = url.parse(req.url, true);
 	//console.log(currentURL);
-	if(req.method === 'POST'){
+		if (req.method === 'POST'){
 		collectRequestData(req, result => {
-            console.log(result);
-            		//kirjutame andmeid tekstifaili
+			//console.log(result);
+			let notice = '<p>Sisestatud andmetega tehti midagi!</p>';
+			//kirjutame andmeid tekstifaili
 			fs.open('public/log.txt', 'a', (err, file)=>{
 				if(err){
 					throw err;
+					nameAddedNotice(res, notice);
 				}
 				else {
-					fs.appendFile('public/log.txt', result.firstNameInput + ';', (err)=>{
+					//kirjutame faili saadud eesnime ja semikooloni
+					fs.appendFile('public/log.txt', result.firstNameInput + ',' + result.lastNameInput + ',' + dateInfo.dateNowENShort() + ';', (err)=>{
 						if(err){
 							throw err;
+							notice = '<p>Sisestatud andmete salvestamine ebaõnnestus!</p>';
+							nameAddedNotice(rs, notice);
 						}
 						else {
 							console.log('faili kirjutati!');
+							notice = '<p>Sisestatud andmete salvestamine õnnestus!</p>';
+							nameAddedNotice(res, notice);
 						}
 					});
 				}
-				/* fs.close(file, (err)=>{
-					if(err){
-						throw err;
-					}
-				}); */
+				
 			});
 			
-			res.end(result.firstNameInput);
-			//res.end('Tuligi POST!');
 		});
 	}
 
@@ -57,18 +59,43 @@ http.createServer(function(req, res){
 		res.write(pageFoot);
 		//console.log("keegi vaatab");
 		return res.end();
-}
+	}
 
-else if (currentURL.pathname == "/addname"){
-	res.writeHead(200, {"Content-type": "text/html"});
-	res.write(pageHead);
-	res.write(pageBanner);
-	res.write(pageBody);
-	res.write('\n\t<hr>\n\t<h2>Lisa palun oma nimi</h2>');
-	res.write('\n\t<form method="POST">\n\t\t<label for="firstNameInput">Eesnimi: </label>\n\t\t<input type="text" name="firstNameInput" id="firstNameInput" placeholder="Sinu eesnimi ...">\n\t\t<br>\n\t\t<label for="lastNameInput">Perekonnanimi: </label>\n\t\t<input type="text" name="lastNameInput" id="lastNameInput" placeholder="Sinu perekonnanimi ...">\n\t\t<br>\n\t\t<input type="submit" name="nameSubmit" value="Salvesta">\n\t</form>');
-	res.write('\n\t <p><a href="/">Tagasi avalehele</a>!</p>');
-	res.write(pageFoot);
-}
+	else if (currentURL.pathname == "/addname"){
+		res.writeHead(200, {"Content-type": "text/html"});
+		res.write(pageHead);
+		res.write(pageBanner);
+		res.write(pageBody);
+		res.write('\n\t<hr>\n\t<h2>Lisa palun oma nimi</h2>');
+		res.write('\n\t<form method="POST">\n\t\t<label for="firstNameInput">Eesnimi: </label>\n\t\t<input type="text" name="firstNameInput" id="firstNameInput" placeholder="Sinu eesnimi ...">\n\t\t<br>\n\t\t<label for="lastNameInput">Perekonnanimi: </label>\n\t\t<input type="text" name="lastNameInput" id="lastNameInput" placeholder="Sinu perekonnanimi ...">\n\t\t<br>\n\t\t<input type="submit" name="nameSubmit" value="Salvesta">\n\t</form>');
+		res.write('\n\t <p><a href="/">Tagasi avalehele</a>!</p>');
+		res.write(pageFoot);
+		return res.end();
+	}
+	else if (currentURL.pathname === "/listNames"){
+			let htmlOutput = '\n\t<p>Kahjuks ühtegi nime ei leitud</p>';
+			fs.readFile("public/log.txt", "utf8", (err, data)=>{
+				if(err){
+					console.log(err);
+					listAllNames(res, htmlOutput);
+				}
+				else {
+					let allData = data.split(";");
+					let allNames = [];
+					htmlOutput = '\n\t<ul>';
+					for (person of allData){
+						allNames.push(person.split(',')); 
+					}
+					for (person of allNames){
+						if(person[0]){
+							htmlOutput += '\n\t\t<li>' + person[0] + ' ' + person[1] + ', salvestatud: ' + person[2] + '</li>';
+						}
+					}
+					htmlOutput += '\n\t</ul>'
+					listAllNames(res, htmlOutput);
+				}
+			});
+		}
 else if (currentURL.pathname==="/semesterprogress")
 	{
 		res.writeHead(200, {"Content-Type":"text/html"});
@@ -171,6 +198,32 @@ function collectRequestData(request, callback) {
     else {
         callback(null);
     }
+}
+
+function nameAddedNotice(res, notice){
+	res.writeHead(200, {"Content-Type": "text/html"});
+	res.write(pageHead);
+	res.write(pageBanner);
+	res.write(pageBody);
+	res.write('\n\t<h2>Palun lisa oma nimi</h2>');
+	res.write('\n\t' + notice);
+	res.write('\n\t <p><a href="/addName">Sisestame järgmise nime</a>!</p>');
+	res.write('\n\t <p><a href="/">Tagasi avalehele</a>!</p>');
+	res.write(pageFoot);
+	//et see kõik valmiks ja ära saadetaks
+	return res.end();
+}
+
+function listAllNames(res, htmlOutput){
+	res.writeHead(200, {"Content-Type": "text/html"});
+	res.write(pageHead);
+	res.write(pageBanner);
+	res.write(pageBody);
+	res.write('\n\t<h2>Kõik sisestatud nimed</h2>');
+	res.write(htmlOutput);
+	res.write('\n\t <p><a href="/">Tagasi avalehele</a>!</p>');
+	res.write(pageFoot);
+	return res.end();
 }
 
 //rinde		5100
